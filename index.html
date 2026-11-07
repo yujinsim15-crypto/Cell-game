@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>퀴즈 러너: 미토콘드리아 대탈출!</title>
+    <style>
+        body {
+            margin: 0;
+            background: #1a1a2e;
+            color: #fff;
+            font-family: 'Malgun Gothic', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            height: 400px;
+            background: linear-gradient(to bottom, #2b5876, #4e4376);
+            border: 4px solid #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;
+            font-weight: bold;
+            pointer-events: none;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        /* 모바일 터치 컨트롤러 */
+        #touch-controls {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 800px;
+            margin-top: 15px;
+            padding: 0 10px;
+            box-sizing: border-box;
+        }
+        .touch-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid #fff;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            width: 45%;
+            height: 60px;
+            border-radius: 15px;
+            cursor: pointer;
+            user-select: none;
+            transition: 0.1s;
+        }
+        .touch-btn:active {
+            background: rgba(255, 255, 255, 0.5);
+            transform: scale(0.95);
+        }
+        #quiz-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 15, 35, 0.95);
+            border: 3px solid #ffcc00;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+            width: 85%;
+            max-width: 450px;
+            box-shadow: 0 0 20px rgba(255, 204, 0, 0.5);
+            z-index: 20;
+        }
+        #quiz-modal h2 {
+            color: #ffcc00;
+            margin-top: 0;
+            font-size: 20px;
+        }
+        #quiz-modal p {
+            font-size: 16px;
+            margin: 15px 0;
+            line-height: 1.4;
+        }
+        .quiz-btn {
+            background: #4e54c8;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            margin: 6px 0;
+            font-size: 15px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: 0.2s;
+        }
+        .quiz-btn:active {
+            background: #8f94fb;
+        }
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 10, 25, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 30;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        #start-screen h1 {
+            color: #ffcc00;
+            font-size: 28px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(255,204,0,0.5);
+        }
+        #start-screen p {
+            font-size: 15px;
+            color: #ddd;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+        .main-btn {
+            background: #ffcc00;
+            color: #1a1a2e;
+            border: none;
+            padding: 12px 35px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(255,204,0,0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="ui-overlay">
+            <div>거리: <span id="distance">0</span>m / 1000m</div>
+            <div>시간: <span id="timer">0.0</span>초</div>
+        </div>
+
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+
+        <!-- 퀴즈 팝업 모달 -->
+        <div id="quiz-modal">
+            <h2 id="quiz-title">🚧 퀴즈 관문 통과 대기 중!</h2>
+            <p id="quiz-question">문제가 여기에 표시됩니다.</p>
+            <div id="quiz-options"></div>
+        </div>
+
+        <!-- 시작 화면 -->
+        <div id="start-screen">
+            <h1>🏃‍♂️ 미토콘드리아 대탈출!</h1>
+            <p>키보드(←, →) 또는 아래 터치 버튼으로 달리며<br>관문 퀴즈를 풀고 최종 골인하세요!</p>
+            <button class="main-btn" onclick="startGame()">게임 시작!</button>
+        </div>
+    </div>
+
+    <!-- 모바일 터치 컨트롤러 버튼 -->
+    <div id="touch-controls">
+        <button class="touch-btn" id="left-btn">◀ 왼쪽</button>
+        <button class="touch-btn" id="right-btn">오른쪽 ▶</button>
+    </div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let gameRunning = false;
+    let distance = 0;
+    let targetDistance = 1000;
+    let startTime = 0;
+    let elapsedTime = 0;
+    let playerX = 400;
+    let playerY = 320;
+    let playerSpeed = 6;
+    let isQuizActive = false;
+    let currentQuizIndex = 0;
+
+    const quizCheckpoints = [250, 500, 750];
+    let checkpointReached = [false, false, false];
+
+    const quizzes = [
+        {
+            question: "피루브산이 미토콘드리아로 들어갈 때 빠져나가는 기체는?",
+            options: ["1) 산소 (O₂)", "2) 이산화탄소 (CO₂)", "3) 수소 (H₂)", "4) 질소 (N₂)"],
+            answer: 1
+        },
+        {
+            question: "TCA 회로 및 전자전달계에서 전자의 최종 수용체 역할을 하는 것은?",
+            options: ["1) 포도당", "2) ATP", "3) 산소 (O₂)", "4) 아세틸-CoA"],
+            answer: 2
+        },
+        {
+            question: "전자전달계에서 전자가 이동할 때 궁극적으로 합성되는 에너지 화폐는?",
+            options: ["1) ATP", "2) 젖산", "3) 글리코겐", "4) 인슐린"],
+            answer: 0
+        }
+    ];
+
+    let keys = { ArrowLeft: false, ArrowRight: false, KeyA: false, KeyD: false };
+    let touchLeft = false;
+    let touchRight = false;
+
+    window.addEventListener("keydown", (e) => { if (keys.hasOwnProperty(e.code)) keys[e.code] = true; });
+    window.addEventListener("keyup", (e) => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
+
+    // 모바일 터치 이벤트 연결
+    const leftBtn = document.getElementById("left-btn");
+    const rightBtn = document.getElementById("right-btn");
+
+    leftBtn.addEventListener("touchstart", (e) => { e.preventDefault(); touchLeft = true; });
+    leftBtn.addEventListener("touchend", (e) => { e.preventDefault(); touchLeft = false; });
+    leftBtn.addEventListener("mousedown", () => { touchLeft = true; });
+    leftBtn.addEventListener("mouseup", () => { touchLeft = false; });
+
+    rightBtn.addEventListener("touchstart", (e) => { e.preventDefault(); touchRight = true; });
+    rightBtn.addEventListener("touchend", (e) => { e.preventDefault(); touchRight = false; });
+    rightBtn.addEventListener("mousedown", () => { touchRight = true; });
+    rightBtn.addEventListener("mouseup", () => { touchRight = false; });
+
+    function startGame() {
+        document.getElementById("start-screen").style.display = "none";
+        gameRunning = true;
+        distance = 0;
+        startTime = Date.now();
+        playerX = 400;
+        currentQuizIndex = 0;
+        checkpointReached = [false, false, false];
+        isQuizActive = false;
+        loop();
+    }
+
+    function triggerQuiz(index) {
+        isQuizActive = true;
+        currentQuizIndex = index;
+        const q = quizzes[index];
+        
+        document.getElementById("quiz-title").innerText = `🚧 퀴즈 관문 #${index + 1} (${distance}m)`;
+        document.getElementById("quiz-question").innerText = q.question;
+        
+        let optionsHtml = "";
+        q.options.forEach((opt, idx) => {
+            optionsHtml += `<button class="quiz-btn" onclick="answerQuiz(${idx})">${opt}</button>`;
+        });
+        document.getElementById("quiz-options").innerHTML = optionsHtml;
+        document.getElementById("quiz-modal").style.display = "block";
+    }
+
+    window.answerQuiz = function(selectedIdx) {
+        const q = quizzes[currentQuizIndex];
+        if (selectedIdx === q.answer) {
+            document.getElementById("quiz-modal").style.display = "none";
+            isQuizActive = false;
+            distance += 25;
+        } else {
+            alert("틀렸습니다! 다시 생각해보세요.");
+        }
+    };
+
+    function update() {
+        if (!gameRunning || isQuizActive) return;
+
+        if ((keys.ArrowLeft || keys.KeyA || touchLeft) && playerX > 100) {
+            playerX -= playerSpeed;
+        }
+        if ((keys.ArrowRight || keys.KeyD || touchRight) && playerX < 700) {
+            playerX += playerSpeed;
+        }
+
+        distance += 2;
+        elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+        document.getElementById("distance").innerText = distance;
+        document.getElementById("timer").innerText = elapsedTime;
+
+        for (let i = 0; i < quizCheckpoints.length; i++) {
+            if (!checkpointReached[i] && distance >= quizCheckpoints[i]) {
+                checkpointReached[i] = true;
+                triggerQuiz(i);
+                break;
+            }
+        }
+
+        if (distance >= targetDistance) {
+            gameRunning = false;
+            alert(`🎉 골인 성공! 기록: ${elapsedTime}초`);
+            document.getElementById("start-screen").style.display = "flex";
+            document.getElementById("start-screen").querySelector("h1").innerText = "🏆 기록 측정 완료!";
+            document.getElementById("start-screen").querySelector("p").innerText = `최종 기록: ${elapsedTime}초`;
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#22223b";
+        ctx.fillRect(0, 220, canvas.width, 180);
+
+        ctx.strokeStyle = "#ffcc00";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(150, 400); ctx.lineTo(350, 220);
+        ctx.moveTo(650, 400); ctx.lineTo(450, 220);
+        ctx.stroke();
+
+        ctx.fillStyle = "#ff6b6b";
+        ctx.beginPath();
+        ctx.arc(playerX, playerY - 15, 16, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#4ecdc4";
+        ctx.fillRect(playerX - 10, playerY, 20, 30);
+    }
+
+    function loop() {
+        if (!gameRunning) return;
+        update();
+        draw();
+        requestAnimationFrame(loop);
+    }
+</script>
+
+</body>
+</html>
